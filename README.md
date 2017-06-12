@@ -132,6 +132,18 @@ Some examples:
 
 For more information see [NPM semver documentation](http://docs.npmjs.com/misc/semver).
 
+### Running in cluster
+
+If you are running your services in cluster (for example Kubernetes), you should specify cluster id in the
+configuration key `kumuluzee.discovery.cluster`. Cluster id should be the same for every service running in the same
+cluster.
+
+Services running in the same cluster will be discovered by their container IP. Services accessing your service from
+outside the cluster will discover your service by its base url (`kumuluzee.baseurl`).
+
+Container IP is automatically acquired when you run the service.
+If you want to override it, you can do so by specifying configuration key `kumuluzee.containerurl`.
+
 ## Changelog
 
 Recent changes can be viewed on Github on the [Releases Page](https://github.com/kumuluz/kumuluzee/releases)
