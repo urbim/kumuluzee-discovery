@@ -1,11 +1,11 @@
 # KumuluzEE Discovery
 [![Build Status](https://img.shields.io/travis/kumuluz/kumuluzee-discovery/master.svg?style=flat)](https://travis-ci.org/kumuluz/kumuluzee-discovery)
 
-> Service discovery extension for the KumuluzEE microservice framework
+> Service discovery extension for the KumuluzEE microservice framework. Service registration, service discovery and client side load balancing with full support for Docker and Kubernetes cluster.
 
 KumuluzEE Discovery is a service discovery extension for the KumuluzEE microservice framework. It provides support for service registration, service discovery and client side load balancing.
-
-KumuluzEE Discovery has been designed to support modularity with plugable service discovery frameworks. Currently, etcd is supported. In the future, other discovery frameworks will be supported too (contributions are welcome).
+KumuluzEE Discovery provides full support for microservices packed as Docker containers. It also provides full support for executing microservices in clusters and cloud-native platforms with full support for Kubernetes. 
+KumuluzEE Discovery has been designed to support modularity with pluggable service discovery frameworks. Currently, etcd is supported. In the future, other discovery frameworks will be supported too (contributions are welcome).
 
 ## Usage
 
@@ -14,7 +14,7 @@ You can enable etcd service discovery by adding the following dependency:
 <dependency>
     <groupId>com.kumuluz.ee.discovery</groupId>
     <artifactId>kumuluzee-discovery-etcd</artifactId>
-    <version>1.0.0</version>
+    <version>1.1.0</version>
 </dependency>
 ```
 
@@ -132,9 +132,10 @@ Some examples:
 
 For more information see [NPM semver documentation](http://docs.npmjs.com/misc/semver).
 
-### Running in cluster
+### Cluster, cloud-native platforms and Kubernetes
 
-If you are running your services in cluster (for example Kubernetes), you should specify cluster id in the
+KumuluzEE Discovery is fully compatible with clusters and cloud-native platforms. It has been extensively tested with Kubernetes.
+If you are running your services in cluster (for example Kubernetes), you should specify the cluster id in the
 configuration key `kumuluzee.discovery.cluster`. Cluster id should be the same for every service running in the same
 cluster.
 
