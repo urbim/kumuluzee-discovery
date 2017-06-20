@@ -69,7 +69,7 @@ public class ConsulRegistrator implements Runnable {
 
         if(agentClient != null) {
             agentClient.register(this.serviceConfiguration.getServicePort(), this.serviceConfiguration.getTtl(),
-                    this.serviceConfiguration.getServiceName(), this.serviceConfiguration.getServiceId(),
+                    this.serviceConfiguration.getServiceConsulKey(), this.serviceConfiguration.getServiceId(),
                     this.serviceConfiguration.getServiceProtocol());
 
             this.isRegistered = true;

@@ -29,13 +29,16 @@ import java.util.Date;
  */
 public class ConsulServiceConfiguration {
     private String serviceName;
+    private String environment;
     private String serviceId;
     private String serviceProtocol;
     private int servicePort;
     private long ttl;
 
-    public ConsulServiceConfiguration(String serviceName, String serviceProtocol, int servicePort, long ttl) {
+    public ConsulServiceConfiguration(String serviceName, String environment, String serviceProtocol, int servicePort,
+                                      long ttl) {
         this.serviceName = serviceName;
+        this.environment = environment;
         this.serviceId = serviceName + new Date().getTime();
         this.serviceProtocol = serviceProtocol;
         this.servicePort = servicePort;
@@ -44,6 +47,14 @@ public class ConsulServiceConfiguration {
 
     public String getServiceName() {
         return serviceName;
+    }
+
+    public String getEnvironment() {
+        return environment;
+    }
+
+    public String getServiceConsulKey() {
+        return ConsulUtils.getConsulServiceKey(this.serviceName, this.environment);
     }
 
     public String getServiceId() {
