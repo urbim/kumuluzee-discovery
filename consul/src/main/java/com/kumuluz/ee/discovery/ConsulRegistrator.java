@@ -20,6 +20,7 @@
 */
 package com.kumuluz.ee.discovery;
 
+import com.kumuluz.ee.discovery.utils.ConsulService;
 import com.kumuluz.ee.discovery.utils.ConsulServiceConfiguration;
 import com.orbitz.consul.AgentClient;
 import com.orbitz.consul.NotRegisteredException;
@@ -70,7 +71,8 @@ public class ConsulRegistrator implements Runnable {
         if(agentClient != null) {
             agentClient.register(this.serviceConfiguration.getServicePort(), this.serviceConfiguration.getTtl(),
                     this.serviceConfiguration.getServiceConsulKey(), this.serviceConfiguration.getServiceId(),
-                    this.serviceConfiguration.getServiceProtocol());
+                    this.serviceConfiguration.getServiceProtocol(),
+                    ConsulService.TAG_VERSION_PREFIX + this.serviceConfiguration.getVersion());
 
             this.isRegistered = true;
         } else {

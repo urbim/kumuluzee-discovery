@@ -21,6 +21,7 @@
 package com.kumuluz.ee.discovery;
 
 import com.kumuluz.ee.configuration.utils.ConfigurationUtil;
+import com.kumuluz.ee.discovery.utils.ConsulService;
 import com.kumuluz.ee.discovery.utils.ConsulServiceConfiguration;
 import com.kumuluz.ee.discovery.utils.ConsulUtils;
 import com.kumuluz.ee.discovery.utils.DiscoveryUtil;
@@ -35,7 +36,6 @@ import com.orbitz.consul.model.health.ServiceHealth;
 
 import javax.annotation.PostConstruct;
 import javax.enterprise.context.ApplicationScoped;
-import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.*;
 import java.util.concurrent.Executors;
@@ -55,7 +55,7 @@ public class ConsulDiscoveryUtilImpl implements DiscoveryUtil {
 
     private List<ConsulServiceConfiguration> registeredServices;
 
-    private Map<String, List<URL>> serviceInstances;
+    private Map<String, List<ConsulService>> serviceInstances;
     private int lastInstanceServedIndex;
 
     private static final int CONSUL_WATCH_WAIT_SECONDS = 120;
@@ -93,7 +93,7 @@ public class ConsulDiscoveryUtilImpl implements DiscoveryUtil {
         int servicePort = configurationUtil.getInteger("port").orElse(8080);
 
         ConsulServiceConfiguration serviceConfiguration = new ConsulServiceConfiguration(serviceName, environment,
-                serviceProtocol, servicePort, ttl);
+                version, serviceProtocol, servicePort, ttl);
 
         // register and schedule heartbeats
         ConsulRegistrator registrator = new ConsulRegistrator(this.agentClient, serviceConfiguration);
@@ -123,11 +123,11 @@ public class ConsulDiscoveryUtilImpl implements DiscoveryUtil {
             List<ServiceHealth> serviceInstances = healthClient.getHealthyServiceInstances(consulServiceKey)
                     .getResponse();
 
-            List<URL> serviceUrls = new ArrayList<>();
+            List<ConsulService> serviceUrls = new ArrayList<>();
             for (ServiceHealth serviceHealth : serviceInstances) {
-                URL url = serviceHealthToURL(serviceHealth);
-                if(url != null) {
-                    serviceUrls.add(url);
+                ConsulService consulService = ConsulService.getInstanceFromServiceHealth(serviceHealth);
+                if(consulService != null) {
+                    serviceUrls.add(consulService);
                 }
             }
 
@@ -135,10 +135,22 @@ public class ConsulDiscoveryUtilImpl implements DiscoveryUtil {
 
             addServiceListener(consulServiceKey);
 
-            return Optional.of(serviceUrls);
+            return Optional.of(filterCorrectVersions(serviceUrls, version));
         } else {
-            return Optional.of(this.serviceInstances.get(consulServiceKey));
+            return Optional.of(filterCorrectVersions(this.serviceInstances.get(consulServiceKey), version));
         }
+    }
+
+    private List<URL> filterCorrectVersions(List<ConsulService> serviceList, String version) {
+        List<URL> urlList = new LinkedList<>();
+
+        for(ConsulService consulService : serviceList) {
+            if(consulService.getVersion().equals(version)) { //TODO npm
+                urlList.add(consulService.getServiceUrl());
+            }
+        }
+
+        return urlList;
     }
 
     @Override
@@ -181,9 +193,10 @@ public class ConsulDiscoveryUtilImpl implements DiscoveryUtil {
                 serviceInstances.get(serviceKey).clear();
 
                 for (Map.Entry<ServiceHealthKey, ServiceHealth> serviceHealthKey : newValues.entrySet()) {
-                    URL url = serviceHealthToURL(serviceHealthKey.getValue());
-                    if(url != null) {
-                        serviceInstances.get(serviceKey).add(serviceHealthToURL(serviceHealthKey.getValue()));
+                    ConsulService consulService = ConsulService
+                            .getInstanceFromServiceHealth(serviceHealthKey.getValue());
+                    if(consulService != null) {
+                        serviceInstances.get(serviceKey).add(consulService);
                     }
                 }
             }
@@ -195,18 +208,6 @@ public class ConsulDiscoveryUtilImpl implements DiscoveryUtil {
             log.severe("Cannot start service listener: " + e.getLocalizedMessage());
         }
 
-    }
-
-    private URL serviceHealthToURL(ServiceHealth serviceHealth) {
-
-        try {
-            return new URL(((serviceHealth.getService().getTags().contains("https")) ? "https" : "http")
-                    + "://" + serviceHealth.getNode().getAddress() + ":" + serviceHealth.getService().getPort());
-        } catch (MalformedURLException e) {
-            log.severe("Malformed URL when translating serviceHealth to URL: " + e.getLocalizedMessage());
-        }
-
-        return null;
     }
 
     @Override
