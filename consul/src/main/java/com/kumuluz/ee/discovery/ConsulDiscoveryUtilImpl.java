@@ -26,13 +26,17 @@ import com.kumuluz.ee.discovery.utils.DiscoveryUtil;
 import com.orbitz.consul.AgentClient;
 import com.orbitz.consul.Consul;
 import com.orbitz.consul.ConsulException;
+import com.orbitz.consul.HealthClient;
+import com.orbitz.consul.cache.ConsulCache;
+import com.orbitz.consul.cache.ServiceHealthCache;
+import com.orbitz.consul.cache.ServiceHealthKey;
+import com.orbitz.consul.model.health.ServiceHealth;
 
 import javax.annotation.PostConstruct;
 import javax.enterprise.context.ApplicationScoped;
+import java.net.MalformedURLException;
 import java.net.URL;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -50,17 +54,22 @@ public class ConsulDiscoveryUtilImpl implements DiscoveryUtil {
 
     private List<ConsulServiceConfiguration> registeredServices;
 
+    private Map<String, List<URL>> serviceInstances;
+    private int lastInstanceServedIndex;
+
     private static final int CONSUL_WATCH_WAIT_SECONDS = 120;
 
-    private Consul consul;
     private AgentClient agentClient;
+    private HealthClient healthClient;
 
     @PostConstruct
     public void init() {
 
         this.registeredServices = new LinkedList<>();
 
-        consul = Consul.builder()
+        this.serviceInstances = new HashMap<>();
+
+        Consul consul = Consul.builder()
                 .withPing(false)
                 .withReadTimeoutMillis(CONSUL_WATCH_WAIT_SECONDS*1000 + (CONSUL_WATCH_WAIT_SECONDS*1000) / 16 + 1000)
                 .build();
@@ -71,7 +80,8 @@ public class ConsulDiscoveryUtilImpl implements DiscoveryUtil {
             log.severe("Cannot ping consul agent: " + e.getLocalizedMessage());
         }
 
-        agentClient = consul.agentClient();
+        this.agentClient = consul.agentClient();
+        this.healthClient = consul.healthClient();
     }
 
     @Override
@@ -104,17 +114,98 @@ public class ConsulDiscoveryUtilImpl implements DiscoveryUtil {
 
     @Override
     public Optional<List<URL>> getServiceInstances(String serviceName, String version, String environment) {
-        return null;
+        if (!this.serviceInstances.containsKey(serviceName)) {
+
+            log.info("Performing service lookup on Consul Agent.");
+
+            List<ServiceHealth> serviceInstances = healthClient.getHealthyServiceInstances(serviceName).getResponse();
+
+            List<URL> serviceUrls = new ArrayList<>();
+            for (ServiceHealth serviceHealth : serviceInstances) {
+                URL url = serviceHealthToURL(serviceHealth);
+                if(url != null) {
+                    serviceUrls.add(url);
+                }
+            }
+
+            this.serviceInstances.put(serviceName, serviceUrls);
+
+            addServiceListener(serviceName);
+
+            return Optional.of(serviceUrls);
+        } else {
+            return Optional.of(this.serviceInstances.get(serviceName));
+        }
     }
 
     @Override
     public Optional<URL> getServiceInstance(String serviceName, String version, String environment) {
-        return null;
+        Optional<List<URL>> optionalServiceInstances = getServiceInstances(serviceName, version, environment);
+
+        if (optionalServiceInstances.isPresent()) {
+
+            List<URL> serviceInstances = optionalServiceInstances.get();
+
+            if (!serviceInstances.isEmpty()) {
+                int index = 0;
+                if (serviceInstances.size() >= lastInstanceServedIndex + 2) {
+                    index = lastInstanceServedIndex + 1;
+                }
+                lastInstanceServedIndex = index;
+
+                return Optional.of(serviceInstances.get(index));
+            }
+        }
+
+        return Optional.empty();
     }
 
     @Override
     public Optional<List<String>> getServiceVersions(String serviceName, String environment) {
         return null;
+    }
+
+    private void addServiceListener(String serviceName) {
+        ServiceHealthCache svHealth = ServiceHealthCache.newCache(healthClient, serviceName);
+
+        svHealth.addListener(new ConsulCache.Listener<ServiceHealthKey, ServiceHealth>() {
+
+            @Override
+            public void notify(Map<ServiceHealthKey, ServiceHealth> newValues) {
+
+                log.info("Service instances for service " + serviceName + " refreshed.");
+
+                serviceInstances.get(serviceName).clear();
+
+                for (Map.Entry<ServiceHealthKey, ServiceHealth> serviceHealthKey : newValues.entrySet()) {
+                    URL url = serviceHealthToURL(serviceHealthKey.getValue());
+                    if(url != null) {
+                        serviceInstances.get(serviceName).add(serviceHealthToURL(serviceHealthKey.getValue()));
+                    }
+                }
+            }
+        });
+
+        try {
+            svHealth.start();
+        } catch (Exception e) {
+            log.severe("Cannot start service listener: " + e.getLocalizedMessage());
+        }
+
+    }
+
+    private URL serviceHealthToURL(ServiceHealth serviceHealth) {
+
+        try {
+            log.info(serviceHealth.getService().getTags().toString());
+            return new URL(((serviceHealth.getService().getTags().contains("https")) ? "https" : "http")
+                    + "://" + serviceHealth.getNode().getAddress() + ":" + serviceHealth.getService().getPort());
+        } catch (MalformedURLException e) {
+            log.severe("Malformed URL when translating serviceHealth to URL: " + e.getLocalizedMessage());
+        }
+
+        return null;
+
     }
 
     @Override
