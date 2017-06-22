@@ -36,10 +36,12 @@ public class ConsulService {
     public static final String TAG_HTTPS = "https";
     public static final String TAG_VERSION_PREFIX = "version=";
 
+    private String id;
     private URL serviceUrl;
     private String version;
 
-    private ConsulService(URL serviceUrl, String version) {
+    private ConsulService(String id, URL serviceUrl, String version) {
+        this.id = id;
         this.serviceUrl = serviceUrl;
         this.version = version;
     }
@@ -50,6 +52,10 @@ public class ConsulService {
 
     public String getVersion() {
         return version;
+    }
+
+    public String getId() {
+        return id;
     }
 
     public static ConsulService getInstanceFromServiceHealth(ServiceHealth serviceHealth) {
@@ -65,7 +71,7 @@ public class ConsulService {
                 version = "1.0.0";
             }
 
-            return new ConsulService(url, version);
+            return new ConsulService(serviceHealth.getService().getId(), url, version);
         }
 
         return null;

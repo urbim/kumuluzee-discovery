@@ -283,6 +283,15 @@ public class ConsulDiscoveryUtilImpl implements DiscoveryUtil {
 
     @Override
     public void disableServiceInstance(String serviceName, String version, String environment, URL url) {
-
+        // init serviceInstances, if not already present
+        getServiceInstances(serviceName, version, environment);
+        List<ConsulService> serviceList = this.serviceInstances
+                .get(ConsulUtils.getConsulServiceKey(serviceName, environment));
+        for(ConsulService consulService : serviceList) {
+            if(consulService.getVersion().equals(version) && consulService.getServiceUrl().equals(url)) {
+                agentClient.toggleMaintenanceMode(consulService.getId(), true, "Service disabled with " +
+                        "KumuluzEE Config Consul's disableServiceInstance call.");
+            }
+        }
     }
 }
