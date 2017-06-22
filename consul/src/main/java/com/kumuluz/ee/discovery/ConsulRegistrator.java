@@ -23,8 +23,12 @@ package com.kumuluz.ee.discovery;
 import com.kumuluz.ee.discovery.utils.ConsulService;
 import com.kumuluz.ee.discovery.utils.ConsulServiceConfiguration;
 import com.orbitz.consul.AgentClient;
+import com.orbitz.consul.HealthClient;
 import com.orbitz.consul.NotRegisteredException;
+import com.orbitz.consul.model.health.ServiceHealth;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.logging.Logger;
 
 /**
@@ -36,12 +40,15 @@ public class ConsulRegistrator implements Runnable {
     private static final Logger log = Logger.getLogger(ConsulRegistrator.class.getName());
 
     private AgentClient agentClient;
+    private HealthClient healthClient;
     private ConsulServiceConfiguration serviceConfiguration;
 
     private boolean isRegistered;
 
-    public ConsulRegistrator(AgentClient agentClient, ConsulServiceConfiguration serviceConfiguration) {
+    public ConsulRegistrator(AgentClient agentClient, HealthClient healthClient,
+                             ConsulServiceConfiguration serviceConfiguration) {
         this.agentClient = agentClient;
+        this.healthClient = healthClient;
         this.serviceConfiguration = serviceConfiguration;
 
         this.isRegistered = false;
@@ -51,8 +58,12 @@ public class ConsulRegistrator implements Runnable {
     public void run() {
         if(!this.isRegistered) {
             this.registerToConsul();
+        } else {
+            sendHeartbeat();
         }
+    }
 
+    private void sendHeartbeat() {
         log.info("Sending heartbeat.");
         try {
             agentClient.pass(this.serviceConfiguration.getServiceId());
@@ -65,18 +76,47 @@ public class ConsulRegistrator implements Runnable {
     }
 
     private void registerToConsul() {
-        log.info("Registering service with Consul. Service name: " + this.serviceConfiguration.getServiceName() +
-                " Service ID: " + this.serviceConfiguration.getServiceId());
-
-        if(agentClient != null) {
-            agentClient.register(this.serviceConfiguration.getServicePort(), this.serviceConfiguration.getTtl(),
-                    this.serviceConfiguration.getServiceConsulKey(), this.serviceConfiguration.getServiceId(),
-                    this.serviceConfiguration.getServiceProtocol(),
-                    ConsulService.TAG_VERSION_PREFIX + this.serviceConfiguration.getVersion());
-
-            this.isRegistered = true;
+        if(this.serviceConfiguration.isSingleton() && isRegistered()) {
+            log.warning("Instance was not registered. Trying to register a singleton microservice instance, but " +
+                    "another instance is already registered.");
         } else {
-            log.severe("Consul not initialized.");
+            log.info("Registering service with Consul. Service name: " + this.serviceConfiguration.getServiceName() +
+                    " Service ID: " + this.serviceConfiguration.getServiceId());
+
+            if (agentClient != null) {
+                agentClient.register(this.serviceConfiguration.getServicePort(), this.serviceConfiguration.getTtl(),
+                        this.serviceConfiguration.getServiceConsulKey(), this.serviceConfiguration.getServiceId(),
+                        this.serviceConfiguration.getServiceProtocol(),
+                        ConsulService.TAG_VERSION_PREFIX + this.serviceConfiguration.getVersion());
+
+                // we need to send heartbead immediately after registration so the checks pass
+                sendHeartbeat();
+                this.isRegistered = true;
+            } else {
+                log.severe("Consul not initialized.");
+            }
+        }
+    }
+
+    private boolean isRegistered() {
+        if(healthClient != null) {
+            List<ServiceHealth> serviceInstances = healthClient
+                    .getHealthyServiceInstances(this.serviceConfiguration.getServiceConsulKey()).getResponse();
+
+            boolean registered = false;
+
+            for (ServiceHealth serviceHealth : serviceInstances) {
+                ConsulService consulService = ConsulService.getInstanceFromServiceHealth(serviceHealth);
+                if(consulService != null) {
+                    registered = true;
+                    break;
+                }
+            }
+
+            return registered;
+        } else {
+            log.severe("Consul not initialized");
+            return false;
         }
     }
 }

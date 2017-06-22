@@ -93,10 +93,11 @@ public class ConsulDiscoveryUtilImpl implements DiscoveryUtil {
         int servicePort = configurationUtil.getInteger("port").orElse(8080);
 
         ConsulServiceConfiguration serviceConfiguration = new ConsulServiceConfiguration(serviceName, environment,
-                version, serviceProtocol, servicePort, ttl);
+                version, serviceProtocol, servicePort, ttl, singleton);
 
         // register and schedule heartbeats
-        ConsulRegistrator registrator = new ConsulRegistrator(this.agentClient, serviceConfiguration);
+        ConsulRegistrator registrator = new ConsulRegistrator(this.agentClient, this.healthClient,
+                serviceConfiguration);
         scheduler.scheduleWithFixedDelay(registrator, 0, pingInterval, TimeUnit.SECONDS);
 
         this.registeredServices.add(serviceConfiguration);

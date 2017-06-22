@@ -35,9 +35,10 @@ public class ConsulServiceConfiguration {
     private String serviceProtocol;
     private int servicePort;
     private long ttl;
+    private boolean singleton;
 
     public ConsulServiceConfiguration(String serviceName, String environment, String version, String serviceProtocol,
-                                      int servicePort, long ttl) {
+                                      int servicePort, long ttl, boolean singleton) {
         this.serviceName = serviceName;
         this.environment = environment;
         this.version = version;
@@ -45,6 +46,7 @@ public class ConsulServiceConfiguration {
         this.serviceProtocol = serviceProtocol;
         this.servicePort = servicePort;
         this.ttl = ttl;
+        this.singleton = singleton;
     }
 
     public String getServiceName() {
@@ -77,5 +79,9 @@ public class ConsulServiceConfiguration {
 
     public long getTtl() {
         return ttl;
+    }
+
+    public boolean isSingleton() {
+        return singleton;
     }
 }
