@@ -33,6 +33,9 @@ import com.orbitz.consul.cache.ConsulCache;
 import com.orbitz.consul.cache.ServiceHealthCache;
 import com.orbitz.consul.cache.ServiceHealthKey;
 import com.orbitz.consul.model.health.ServiceHealth;
+import com.vdurmont.semver4j.Requirement;
+import com.vdurmont.semver4j.Semver;
+import com.vdurmont.semver4j.SemverException;
 
 import javax.annotation.PostConstruct;
 import javax.enterprise.context.ApplicationScoped;
@@ -56,6 +59,7 @@ public class ConsulDiscoveryUtilImpl implements DiscoveryUtil {
     private List<ConsulServiceConfiguration> registeredServices;
 
     private Map<String, List<ConsulService>> serviceInstances;
+    private Map<String, Set<String>> serviceVersions;
     private int lastInstanceServedIndex;
 
     private static final int CONSUL_WATCH_WAIT_SECONDS = 120;
@@ -69,6 +73,7 @@ public class ConsulDiscoveryUtilImpl implements DiscoveryUtil {
         this.registeredServices = new LinkedList<>();
 
         this.serviceInstances = new HashMap<>();
+        this.serviceVersions = new HashMap<>();
 
         Consul consul = Consul.builder()
                 .withPing(false)
@@ -117,41 +122,95 @@ public class ConsulDiscoveryUtilImpl implements DiscoveryUtil {
     @Override
     public Optional<List<URL>> getServiceInstances(String serviceName, String version, String environment) {
         String consulServiceKey = ConsulUtils.getConsulServiceKey(serviceName, environment);
-        if (!this.serviceInstances.containsKey(consulServiceKey)) {
+        if (!this.serviceInstances.containsKey(consulServiceKey) ||
+                !this.serviceVersions.containsKey(consulServiceKey)) {
 
             log.info("Performing service lookup on Consul Agent.");
 
             List<ServiceHealth> serviceInstances = healthClient.getHealthyServiceInstances(consulServiceKey)
                     .getResponse();
 
+            Set<String> serviceVersions = new HashSet<>();
+
             List<ConsulService> serviceUrls = new ArrayList<>();
             for (ServiceHealth serviceHealth : serviceInstances) {
                 ConsulService consulService = ConsulService.getInstanceFromServiceHealth(serviceHealth);
                 if(consulService != null) {
                     serviceUrls.add(consulService);
+                    serviceVersions.add(consulService.getVersion());
                 }
             }
 
             this.serviceInstances.put(consulServiceKey, serviceUrls);
+            this.serviceVersions.put(consulServiceKey, serviceVersions);
 
             addServiceListener(consulServiceKey);
-
-            return Optional.of(filterCorrectVersions(serviceUrls, version));
-        } else {
-            return Optional.of(filterCorrectVersions(this.serviceInstances.get(consulServiceKey), version));
         }
-    }
 
-    private List<URL> filterCorrectVersions(List<ConsulService> serviceList, String version) {
+        // filter instances by correct version
+        List<ConsulService> serviceList = this.serviceInstances.get(consulServiceKey);
         List<URL> urlList = new LinkedList<>();
 
-        for(ConsulService consulService : serviceList) {
-            if(consulService.getVersion().equals(version)) { //TODO npm
-                urlList.add(consulService.getServiceUrl());
+        if(version != null) {
+            String resolvedVersion = determineVersion(serviceName, version, environment);
+            for (ConsulService consulService : serviceList) {
+                if (consulService.getVersion().equals(resolvedVersion)) {
+                    urlList.add(consulService.getServiceUrl());
+                }
             }
         }
 
-        return urlList;
+        return Optional.of(urlList);
+    }
+
+    private String determineVersion(String serviceName, String version, String environment) {
+
+        // check, if version has special characters (*, ^, ~)
+        // if true, use get getServiceVersions to get appropriate version
+        // return version
+
+        Requirement versionRequirement;
+        try {
+            versionRequirement = Requirement.buildNPM(version);
+        } catch (SemverException se) {
+            return version;
+        }
+
+        if (!version.contains("*") && !version.contains("x")) {
+            try {
+                new Semver(version, Semver.SemverType.NPM);
+                return version;
+            } catch (SemverException ignored) {
+            }
+        }
+
+        Optional<List<String>> versionsOpt = getServiceVersions(serviceName, environment);
+
+        if (versionsOpt.isPresent()) {
+            List<String> versions = versionsOpt.get();
+            List<Semver> versionsSemver = new LinkedList<>();
+
+            for (String versionString : versions) {
+                Semver listVersion;
+                try {
+                    listVersion = new Semver(versionString, Semver.SemverType.NPM);
+                } catch (SemverException se) {
+                    continue;
+                }
+
+                versionsSemver.add(listVersion);
+            }
+
+            Collections.sort(versionsSemver);
+
+            for (int i = versionsSemver.size() - 1; i >= 0; i--) {
+                if (versionsSemver.get(i).satisfies(versionRequirement)) {
+                    return versionsSemver.get(i).getOriginalValue();
+                }
+            }
+        }
+
+        return version;
     }
 
     @Override
@@ -178,7 +237,16 @@ public class ConsulDiscoveryUtilImpl implements DiscoveryUtil {
 
     @Override
     public Optional<List<String>> getServiceVersions(String serviceName, String environment) {
-        return null;
+        String consulServiceKey = ConsulUtils.getConsulServiceKey(serviceName, environment);
+        if(!this.serviceVersions.containsKey(consulServiceKey)) {
+            // initialize serviceVersions and watcher
+            getServiceInstances(serviceName, null, environment);
+        }
+
+        List<String> versionsList = new LinkedList<>();
+        versionsList.addAll(this.serviceVersions.get(consulServiceKey));
+
+        return Optional.of(versionsList);
     }
 
     private void addServiceListener(String serviceKey) {
@@ -192,12 +260,14 @@ public class ConsulDiscoveryUtilImpl implements DiscoveryUtil {
                 log.info("Service instances for service " + serviceKey + " refreshed.");
 
                 serviceInstances.get(serviceKey).clear();
+                serviceVersions.get(serviceKey).clear();
 
                 for (Map.Entry<ServiceHealthKey, ServiceHealth> serviceHealthKey : newValues.entrySet()) {
                     ConsulService consulService = ConsulService
                             .getInstanceFromServiceHealth(serviceHealthKey.getValue());
                     if(consulService != null) {
                         serviceInstances.get(serviceKey).add(consulService);
+                        serviceVersions.get(serviceKey).add(consulService.getVersion());
                     }
                 }
             }

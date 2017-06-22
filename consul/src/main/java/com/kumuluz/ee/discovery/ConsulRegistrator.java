@@ -27,7 +27,6 @@ import com.orbitz.consul.HealthClient;
 import com.orbitz.consul.NotRegisteredException;
 import com.orbitz.consul.model.health.ServiceHealth;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.logging.Logger;
 
@@ -107,7 +106,7 @@ public class ConsulRegistrator implements Runnable {
 
             for (ServiceHealth serviceHealth : serviceInstances) {
                 ConsulService consulService = ConsulService.getInstanceFromServiceHealth(serviceHealth);
-                if(consulService != null) {
+                if(consulService != null && consulService.getVersion().equals(this.serviceConfiguration.getVersion())) {
                     registered = true;
                     break;
                 }
