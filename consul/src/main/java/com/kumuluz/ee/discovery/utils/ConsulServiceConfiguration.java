@@ -37,8 +37,12 @@ public class ConsulServiceConfiguration {
     private long ttl;
     private boolean singleton;
 
+    private int startRetryDelay;
+    private int maxRetryDelay;
+
     public ConsulServiceConfiguration(String serviceName, String environment, String version, String serviceProtocol,
-                                      int servicePort, long ttl, boolean singleton) {
+                                      int servicePort, long ttl, boolean singleton, int startRetryDelay,
+                                      int maxRetryDelay) {
         this.serviceName = serviceName;
         this.environment = environment;
         this.version = version;
@@ -47,6 +51,9 @@ public class ConsulServiceConfiguration {
         this.servicePort = servicePort;
         this.ttl = ttl;
         this.singleton = singleton;
+
+        this.startRetryDelay = startRetryDelay;
+        this.maxRetryDelay = maxRetryDelay;
     }
 
     public String getServiceName() {
@@ -83,5 +90,13 @@ public class ConsulServiceConfiguration {
 
     public boolean isSingleton() {
         return singleton;
+    }
+
+    public int getStartRetryDelay() {
+        return startRetryDelay;
+    }
+
+    public int getMaxRetryDelay() {
+        return maxRetryDelay;
     }
 }

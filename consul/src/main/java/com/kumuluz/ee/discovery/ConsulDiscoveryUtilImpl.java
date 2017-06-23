@@ -97,8 +97,14 @@ public class ConsulDiscoveryUtilImpl implements DiscoveryUtil {
         String serviceProtocol = configurationUtil.get("kumuluzee.discovery.consul.protocol").orElse("http");
         int servicePort = configurationUtil.getInteger("port").orElse(8080);
 
+        // get retry delays
+        int startRetryDelay = configurationUtil.getInteger("kumuluzee.config.consul.start-retry-delay-ms")
+                .orElse(500);
+        int maxRetryDelay = configurationUtil.getInteger("kumuluzee.config.consul.max-retry-delay-ms")
+                .orElse(900000);
+
         ConsulServiceConfiguration serviceConfiguration = new ConsulServiceConfiguration(serviceName, environment,
-                version, serviceProtocol, servicePort, ttl, singleton);
+                version, serviceProtocol, servicePort, ttl, singleton, startRetryDelay, maxRetryDelay);
 
         // register and schedule heartbeats
         ConsulRegistrator registrator = new ConsulRegistrator(this.agentClient, this.healthClient,
@@ -114,7 +120,11 @@ public class ConsulDiscoveryUtilImpl implements DiscoveryUtil {
             for(ConsulServiceConfiguration serviceConfiguration : registeredServices) {
                 log.info("Deregistering service with Consul. Service name: " +
                         serviceConfiguration.getServiceName() + " Service ID: " + serviceConfiguration.getServiceId());
-                agentClient.deregister(serviceConfiguration.getServiceId());
+                try {
+                    agentClient.deregister(serviceConfiguration.getServiceId());
+                } catch (ConsulException e) {
+                    log.severe("Error deregistering service with Consul: " + e.getLocalizedMessage());
+                }
             }
         }
     }
@@ -127,13 +137,19 @@ public class ConsulDiscoveryUtilImpl implements DiscoveryUtil {
 
             log.info("Performing service lookup on Consul Agent.");
 
-            List<ServiceHealth> serviceInstances = healthClient.getHealthyServiceInstances(consulServiceKey)
-                    .getResponse();
+            List<ServiceHealth> serviceHealths;
+            try {
+                serviceHealths = healthClient.getHealthyServiceInstances(consulServiceKey)
+                        .getResponse();
+            } catch (ConsulException e) {
+                log.severe("Error retrieving healthy service instances from Consul: " + e.getLocalizedMessage());
+                return Optional.empty();
+            }
 
             Set<String> serviceVersions = new HashSet<>();
 
             List<ConsulService> serviceUrls = new ArrayList<>();
-            for (ServiceHealth serviceHealth : serviceInstances) {
+            for (ServiceHealth serviceHealth : serviceHealths) {
                 ConsulService consulService = ConsulService.getInstanceFromServiceHealth(serviceHealth);
                 if(consulService != null) {
                     serviceUrls.add(consulService);
@@ -289,8 +305,12 @@ public class ConsulDiscoveryUtilImpl implements DiscoveryUtil {
                 .get(ConsulUtils.getConsulServiceKey(serviceName, environment));
         for(ConsulService consulService : serviceList) {
             if(consulService.getVersion().equals(version) && consulService.getServiceUrl().equals(url)) {
-                agentClient.toggleMaintenanceMode(consulService.getId(), true, "Service disabled with " +
-                        "KumuluzEE Config Consul's disableServiceInstance call.");
+                try {
+                    agentClient.toggleMaintenanceMode(consulService.getId(), true, "Service disabled" +
+                            "with KumuluzEE Config Consul's disableServiceInstance call.");
+                } catch (ConsulException e) {
+                    log.severe("Error deregistering service instance with Consul: " + e.getLocalizedMessage());
+                }
             }
         }
     }

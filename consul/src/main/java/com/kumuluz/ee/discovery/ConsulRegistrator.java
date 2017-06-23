@@ -23,8 +23,11 @@ package com.kumuluz.ee.discovery;
 import com.kumuluz.ee.discovery.utils.ConsulService;
 import com.kumuluz.ee.discovery.utils.ConsulServiceConfiguration;
 import com.orbitz.consul.AgentClient;
+import com.orbitz.consul.ConsulException;
 import com.orbitz.consul.HealthClient;
 import com.orbitz.consul.NotRegisteredException;
+import com.orbitz.consul.model.agent.ImmutableRegCheck;
+import com.orbitz.consul.model.agent.Registration;
 import com.orbitz.consul.model.health.ServiceHealth;
 
 import java.util.List;
@@ -44,6 +47,8 @@ public class ConsulRegistrator implements Runnable {
 
     private boolean isRegistered;
 
+    private int currentRetryDelay;
+
     public ConsulRegistrator(AgentClient agentClient, HealthClient healthClient,
                              ConsulServiceConfiguration serviceConfiguration) {
         this.agentClient = agentClient;
@@ -51,6 +56,8 @@ public class ConsulRegistrator implements Runnable {
         this.serviceConfiguration = serviceConfiguration;
 
         this.isRegistered = false;
+
+        this.currentRetryDelay = serviceConfiguration.getStartRetryDelay();
     }
 
     @Override
@@ -67,10 +74,10 @@ public class ConsulRegistrator implements Runnable {
         try {
             agentClient.pass(this.serviceConfiguration.getServiceId());
         } catch (NotRegisteredException e) {
-            log.warning("Received NotRegisteredException from Consul AgentClient. Reregistering service.");
+            log.warning("Received NotRegisteredException from Consul AgentClient when sending heartbeat. "  +
+                    "Reregistering service.");
             this.isRegistered = false;
             this.registerToConsul();
-            // TODO check
         }
     }
 
@@ -83,14 +90,36 @@ public class ConsulRegistrator implements Runnable {
                     " Service ID: " + this.serviceConfiguration.getServiceId());
 
             if (agentClient != null) {
-                agentClient.register(this.serviceConfiguration.getServicePort(), this.serviceConfiguration.getTtl(),
-                        this.serviceConfiguration.getServiceConsulKey(), this.serviceConfiguration.getServiceId(),
-                        this.serviceConfiguration.getServiceProtocol(),
-                        ConsulService.TAG_VERSION_PREFIX + this.serviceConfiguration.getVersion());
+                while(!this.isRegistered) {
+                    try {
+                        Registration.RegCheck ttlCheck = ImmutableRegCheck.builder()
+                                .ttl(String.format("%ss", this.serviceConfiguration.getTtl()))
+                                .deregisterCriticalServiceAfter(String.format("%ss", 60)) //TODO v config
+                                .build();
+                        agentClient.register(this.serviceConfiguration.getServicePort(), ttlCheck,
+                                this.serviceConfiguration.getServiceConsulKey(),
+                                this.serviceConfiguration.getServiceId(),
+                                this.serviceConfiguration.getServiceProtocol(),
+                                ConsulService.TAG_VERSION_PREFIX + this.serviceConfiguration.getVersion());
+                        this.isRegistered = true;
+                        this.currentRetryDelay = serviceConfiguration.getStartRetryDelay();
+                    } catch (ConsulException e) {
+                        log.severe("Consul Exception when registering service: " + e.getLocalizedMessage());
+                        try {
+                            Thread.sleep(currentRetryDelay);
+                        } catch (InterruptedException ignored) {
+                        }
 
-                // we need to send heartbead immediately after registration so the checks pass
+                        // exponential increase, limited by maxRetryDelay
+                        currentRetryDelay *= 2;
+                        if(currentRetryDelay > serviceConfiguration.getMaxRetryDelay()) {
+                            currentRetryDelay = serviceConfiguration.getMaxRetryDelay();
+                        }
+                    }
+                }
+
+                // we need to send heartbeat immediately after registration so the checks pass
                 sendHeartbeat();
-                this.isRegistered = true;
             } else {
                 log.severe("Consul not initialized.");
             }
@@ -99,8 +128,15 @@ public class ConsulRegistrator implements Runnable {
 
     private boolean isRegistered() {
         if(healthClient != null) {
-            List<ServiceHealth> serviceInstances = healthClient
-                    .getHealthyServiceInstances(this.serviceConfiguration.getServiceConsulKey()).getResponse();
+            List<ServiceHealth> serviceInstances;
+            try {
+                serviceInstances = healthClient
+                        .getHealthyServiceInstances(this.serviceConfiguration.getServiceConsulKey()).getResponse();
+            } catch (ConsulException e) {
+                log.severe("Error retrieving healthy instances from Consul. Cannot determine, if service is " +
+                        "already registered. ConsulException: " + e.getLocalizedMessage());
+                return true;
+            }
 
             boolean registered = false;
 
