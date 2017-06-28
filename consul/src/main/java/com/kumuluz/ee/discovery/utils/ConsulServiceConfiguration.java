@@ -39,10 +39,11 @@ public class ConsulServiceConfiguration {
 
     private int startRetryDelay;
     private int maxRetryDelay;
+    private int deregisterCriticalServiceAfter;
 
     public ConsulServiceConfiguration(String serviceName, String environment, String version, String serviceProtocol,
                                       int servicePort, long ttl, boolean singleton, int startRetryDelay,
-                                      int maxRetryDelay) {
+                                      int maxRetryDelay, int deregisterCriticalServiceAfter) {
         this.serviceName = serviceName;
         this.environment = environment;
         this.version = version;
@@ -54,6 +55,7 @@ public class ConsulServiceConfiguration {
 
         this.startRetryDelay = startRetryDelay;
         this.maxRetryDelay = maxRetryDelay;
+        this.deregisterCriticalServiceAfter = deregisterCriticalServiceAfter;
     }
 
     public String getServiceName() {
@@ -98,5 +100,9 @@ public class ConsulServiceConfiguration {
 
     public int getMaxRetryDelay() {
         return maxRetryDelay;
+    }
+
+    public int getDeregisterCriticalServiceAfter() {
+        return deregisterCriticalServiceAfter;
     }
 }

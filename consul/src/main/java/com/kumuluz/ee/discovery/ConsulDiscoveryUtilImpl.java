@@ -103,8 +103,12 @@ public class ConsulDiscoveryUtilImpl implements DiscoveryUtil {
         int maxRetryDelay = configurationUtil.getInteger("kumuluzee.config.consul.max-retry-delay-ms")
                 .orElse(900000);
 
+        int deregisterCriticalServiceAfter = configurationUtil
+                .getInteger("kumuluzee.config.consul.deregister-critical-service-after-s").orElse(60);
+
         ConsulServiceConfiguration serviceConfiguration = new ConsulServiceConfiguration(serviceName, environment,
-                version, serviceProtocol, servicePort, ttl, singleton, startRetryDelay, maxRetryDelay);
+                version, serviceProtocol, servicePort, ttl, singleton, startRetryDelay, maxRetryDelay,
+                deregisterCriticalServiceAfter);
 
         // register and schedule heartbeats
         ConsulRegistrator registrator = new ConsulRegistrator(this.agentClient, this.healthClient,

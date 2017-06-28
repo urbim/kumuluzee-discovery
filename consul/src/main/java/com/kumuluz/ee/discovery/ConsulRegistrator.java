@@ -92,10 +92,15 @@ public class ConsulRegistrator implements Runnable {
             if (agentClient != null) {
                 while(!this.isRegistered) {
                     try {
-                        Registration.RegCheck ttlCheck = ImmutableRegCheck.builder()
-                                .ttl(String.format("%ss", this.serviceConfiguration.getTtl()))
-                                .deregisterCriticalServiceAfter(String.format("%ss", 60)) //TODO v config
-                                .build();
+                        ImmutableRegCheck.Builder ttlCheckBuilder = ImmutableRegCheck.builder()
+                                .ttl(String.format("%ss", this.serviceConfiguration.getTtl()));
+
+                        if(this.serviceConfiguration.getDeregisterCriticalServiceAfter() != 0) {
+                            ttlCheckBuilder = ttlCheckBuilder.deregisterCriticalServiceAfter(String
+                                    .format("%ss", this.serviceConfiguration.getDeregisterCriticalServiceAfter()));
+                        }
+                        Registration.RegCheck ttlCheck = ttlCheckBuilder.build();
+
                         agentClient.register(this.serviceConfiguration.getServicePort(), ttlCheck,
                                 this.serviceConfiguration.getServiceConsulKey(),
                                 this.serviceConfiguration.getServiceId(),
