@@ -5,7 +5,7 @@
 
 KumuluzEE Discovery is a service discovery extension for the KumuluzEE microservice framework. It provides support for service registration, service discovery and client side load balancing.
 KumuluzEE Discovery provides full support for microservices packed as Docker containers. It also provides full support for executing microservices in clusters and cloud-native platforms with full support for Kubernetes. 
-KumuluzEE Discovery has been designed to support modularity with pluggable service discovery frameworks. Currently, etcd is supported. In the future, other discovery frameworks will be supported too (contributions are welcome).
+KumuluzEE Discovery has been designed to support modularity with pluggable service discovery frameworks. Currently, etcd and Consul are supported. In the future, other discovery frameworks will be supported too (contributions are welcome).
 
 ## Usage
 
@@ -14,7 +14,16 @@ You can enable etcd service discovery by adding the following dependency:
 <dependency>
     <groupId>com.kumuluz.ee.discovery</groupId>
     <artifactId>kumuluzee-discovery-etcd</artifactId>
-    <version>1.1.0</version>
+    <version>${kumuluzee-discovery.version}</version>
+</dependency>
+```
+
+You can enable Consul service discovery by adding the following dependency:
+```xml
+<dependency>
+    <groupId>com.kumuluz.ee.discovery</groupId>
+    <artifactId>kumuluzee-discovery-consul</artifactId>
+    <version>${kumuluzee-discovery.version}</version>
 </dependency>
 ```
 
@@ -54,10 +63,26 @@ kumuluzee:
     ping-interval: 5
 ```
 
+#### Configuring Consul
+
+Etcd is configured with the common KumuluzEE configuration framework. Configuration properties can be defined with the environment variables or in the configuration file. For more details see the 
+[KumuluzEE configuration wiki page](https://github.com/kumuluz/kumuluzee/wiki/Configuration).
+
+Consul connects to the local agent without additional configuration.
+
+If your service is accessible over https, you must specify that with configuration key
+`kumuluzee.discovery.consul.protocol: https`. Otherwise, http protocol is used.
+
+Services in Consul are registered with the following name: `'environment'/'serviceName'`
+
+Version is stored in service tag with following format: `version='version'`
+
+If the service uses https protocol, tag `https` is added.
+
 ### Service registration
 
 To register a service, service URL has to be provided with the configuration key `kumuluzee.base-url` in the following format 
-`http://localhost:8080`. 
+`http://localhost:8080`. Consul implementation uses its local agent's address, so this key is not used.
 
 KumuluzEE Discovery supports registration of multiple different versions of a service in different environments. The environment can be set with 
 the configuration key `kumuluzee.env`, the default value is `dev`. Service version can also be set with the configuration key 
@@ -121,7 +146,7 @@ public class TestResource {
 
 **NPM-like versioning**
 
-Etcd supports NPM-like versioning. If service is registered with version in
+Etcd and Consul implementations support NPM-like versioning. If service is registered with version in
 NPM format, it can be discovered using a NPM range.
 Some examples:
 
