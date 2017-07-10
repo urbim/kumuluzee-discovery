@@ -20,7 +20,9 @@
 */
 package com.kumuluz.ee.discovery.utils;
 
+import com.kumuluz.ee.configuration.utils.ConfigurationUtil;
 import com.kumuluz.ee.discovery.annotations.DiscoverService;
+import com.kumuluz.ee.discovery.enums.AccessType;
 
 import javax.enterprise.context.RequestScoped;
 import javax.enterprise.inject.Produces;
@@ -47,25 +49,17 @@ public class DiscoverServiceProducer {
 
     @Produces
     @DiscoverService
-    public URL getUrl(InjectionPoint injectionPoint) {
+    public URL produceUrl(InjectionPoint injectionPoint) {
 
-        String serviceName = injectionPoint.getAnnotated().getAnnotation(DiscoverService.class).value();
-        String environment = injectionPoint.getAnnotated().getAnnotation(DiscoverService.class).environment();
-        String version = injectionPoint.getAnnotated().getAnnotation(DiscoverService.class).version();
-
-        return getUrl(serviceName, environment, version);
+        return getUrl(injectionPoint);
 
     }
 
     @Produces
     @DiscoverService
-    public String getUrlString(InjectionPoint injectionPoint) {
+    public String produceString(InjectionPoint injectionPoint) {
 
-        String serviceName = injectionPoint.getAnnotated().getAnnotation(DiscoverService.class).value();
-        String environment = injectionPoint.getAnnotated().getAnnotation(DiscoverService.class).environment();
-        String version = injectionPoint.getAnnotated().getAnnotation(DiscoverService.class).version();
-
-        URL url = getUrl(serviceName, environment, version);
+        URL url = getUrl(injectionPoint);
 
         if (url != null) {
             return url.toString();
@@ -76,14 +70,10 @@ public class DiscoverServiceProducer {
 
     @Produces
     @DiscoverService
-    public WebTarget getUrlWebTarget(InjectionPoint injectionPoint) {
-
-        String serviceName = injectionPoint.getAnnotated().getAnnotation(DiscoverService.class).value();
-        String environment = injectionPoint.getAnnotated().getAnnotation(DiscoverService.class).environment();
-        String version = injectionPoint.getAnnotated().getAnnotation(DiscoverService.class).version();
+    public WebTarget produceWebTarget(InjectionPoint injectionPoint) {
 
         Client client = ClientBuilder.newClient();
-        URL url = getUrl(serviceName, environment, version);
+        URL url = getUrl(injectionPoint);
         if (url != null) {
             try {
                 return client.target(url.toURI());
@@ -96,12 +86,21 @@ public class DiscoverServiceProducer {
 
     }
 
-    private URL getUrl(String serviceName, String environment, String version) {
+    private URL getUrl(InjectionPoint injectionPoint) {
+
+        String serviceName = injectionPoint.getAnnotated().getAnnotation(DiscoverService.class).value();
+        String environment = injectionPoint.getAnnotated().getAnnotation(DiscoverService.class).environment();
+        String version = injectionPoint.getAnnotated().getAnnotation(DiscoverService.class).version();
+        AccessType accessType = injectionPoint.getAnnotated().getAnnotation(DiscoverService.class).accessType();
+
+        if (environment.isEmpty()) {
+            environment = ConfigurationUtil.getInstance().get("kumuluzee.env").orElse("dev");
+        }
 
         log.info("Initializing field for service: " + serviceName + " version: " + version + " environment: " +
                 environment);
 
-        Optional<URL> serviceUrl = discoveryUtil.getServiceInstance(serviceName, version, environment);
+        Optional<URL> serviceUrl = discoveryUtil.getServiceInstance(serviceName, version, environment, accessType);
 
         return serviceUrl.orElse(null);
 
