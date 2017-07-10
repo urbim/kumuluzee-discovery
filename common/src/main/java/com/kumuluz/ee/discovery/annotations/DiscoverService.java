@@ -20,6 +20,8 @@
 */
 package com.kumuluz.ee.discovery.annotations;
 
+import com.kumuluz.ee.discovery.enums.AccessType;
+
 import javax.enterprise.util.Nonbinding;
 import javax.inject.Qualifier;
 import java.lang.annotation.ElementType;
@@ -38,9 +40,12 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ElementType.FIELD, ElementType.METHOD})
 public @interface DiscoverService {
+
     @Nonbinding String value() default "";
 
-    @Nonbinding String environment() default "dev";
+    @Nonbinding String environment() default "";
 
-    @Nonbinding String version() default "1.0.0";
+    @Nonbinding String version() default "*";
+
+    @Nonbinding AccessType accessType() default AccessType.GATEWAY;
 }
