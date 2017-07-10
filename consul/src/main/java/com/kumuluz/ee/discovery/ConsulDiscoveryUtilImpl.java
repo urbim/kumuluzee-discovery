@@ -21,6 +21,7 @@
 package com.kumuluz.ee.discovery;
 
 import com.kumuluz.ee.configuration.utils.ConfigurationUtil;
+import com.kumuluz.ee.discovery.enums.AccessType;
 import com.kumuluz.ee.discovery.utils.ConsulService;
 import com.kumuluz.ee.discovery.utils.ConsulServiceConfiguration;
 import com.kumuluz.ee.discovery.utils.ConsulUtils;
@@ -134,7 +135,8 @@ public class ConsulDiscoveryUtilImpl implements DiscoveryUtil {
     }
 
     @Override
-    public Optional<List<URL>> getServiceInstances(String serviceName, String version, String environment) {
+    public Optional<List<URL>> getServiceInstances(String serviceName, String version, String environment,
+                                                   AccessType accessType) {
         String consulServiceKey = ConsulUtils.getConsulServiceKey(serviceName, environment);
         if (!this.serviceInstances.containsKey(consulServiceKey) ||
                 !this.serviceVersions.containsKey(consulServiceKey)) {
@@ -234,8 +236,10 @@ public class ConsulDiscoveryUtilImpl implements DiscoveryUtil {
     }
 
     @Override
-    public Optional<URL> getServiceInstance(String serviceName, String version, String environment) {
-        Optional<List<URL>> optionalServiceInstances = getServiceInstances(serviceName, version, environment);
+    public Optional<URL> getServiceInstance(String serviceName, String version, String environment,
+                                            AccessType accessType) {
+        Optional<List<URL>> optionalServiceInstances = getServiceInstances(serviceName, version, environment,
+                accessType);
 
         if (optionalServiceInstances.isPresent()) {
 
@@ -260,7 +264,7 @@ public class ConsulDiscoveryUtilImpl implements DiscoveryUtil {
         String consulServiceKey = ConsulUtils.getConsulServiceKey(serviceName, environment);
         if(!this.serviceVersions.containsKey(consulServiceKey)) {
             // initialize serviceVersions and watcher
-            getServiceInstances(serviceName, null, environment);
+            getServiceInstances(serviceName, null, environment, AccessType.DIRECT);
         }
 
         List<String> versionsList = new LinkedList<>();
@@ -304,7 +308,7 @@ public class ConsulDiscoveryUtilImpl implements DiscoveryUtil {
     @Override
     public void disableServiceInstance(String serviceName, String version, String environment, URL url) {
         // init serviceInstances, if not already present
-        getServiceInstances(serviceName, version, environment);
+        getServiceInstances(serviceName, version, environment, AccessType.DIRECT);
         List<ConsulService> serviceList = this.serviceInstances
                 .get(ConsulUtils.getConsulServiceKey(serviceName, environment));
         for(ConsulService consulService : serviceList) {
