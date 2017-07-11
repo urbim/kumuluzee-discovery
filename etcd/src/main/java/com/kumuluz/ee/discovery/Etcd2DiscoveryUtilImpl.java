@@ -146,10 +146,8 @@ public class Etcd2DiscoveryUtilImpl implements DiscoveryUtil {
 
             }
 
-            int startRetryDelay = configurationUtil.getInteger("kumuluzee.discovery.etcd.start-retry-delay-ms")
-                    .orElse(500);
-            int maxRetryDelay = configurationUtil.getInteger("kumuluzee.discovery.etcd.max-retry-delay-ms")
-                    .orElse(900000);
+            int startRetryDelay = InitializationUtils.getStartRetryDelayMs(configurationUtil, "etcd");
+            int maxRetryDelay = InitializationUtils.getMaxRetryDelayMs(configurationUtil, "etcd");
 
             etcd.setRetryHandler(new RetryWithExponentialBackOff(startRetryDelay, -1, maxRetryDelay));
 

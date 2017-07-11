@@ -93,10 +93,8 @@ public class ConsulDiscoveryUtilImpl implements DiscoveryUtil {
         int servicePort = configurationUtil.getInteger("port").orElse(8080);
 
         // get retry delays
-        int startRetryDelay = configurationUtil.getInteger("kumuluzee.config.consul.start-retry-delay-ms")
-                .orElse(500);
-        int maxRetryDelay = configurationUtil.getInteger("kumuluzee.config.consul.max-retry-delay-ms")
-                .orElse(900000);
+        int startRetryDelay = InitializationUtils.getStartRetryDelayMs(configurationUtil, "consul");
+        int maxRetryDelay = InitializationUtils.getMaxRetryDelayMs(configurationUtil, "consul");
 
         int deregisterCriticalServiceAfter = configurationUtil
                 .getInteger("kumuluzee.config.consul.deregister-critical-service-after-s").orElse(60);
