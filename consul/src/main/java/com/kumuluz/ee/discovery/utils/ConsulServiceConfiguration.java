@@ -47,7 +47,7 @@ public class ConsulServiceConfiguration {
         this.serviceName = serviceName;
         this.environment = environment;
         this.version = version;
-        this.serviceId = serviceName + new Date().getTime();
+        this.serviceId = serviceName + "-" + new Date().getTime();
         this.serviceProtocol = serviceProtocol;
         this.servicePort = servicePort;
         this.ttl = ttl;
