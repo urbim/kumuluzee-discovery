@@ -22,10 +22,7 @@ package com.kumuluz.ee.discovery;
 
 import com.kumuluz.ee.configuration.utils.ConfigurationUtil;
 import com.kumuluz.ee.discovery.enums.AccessType;
-import com.kumuluz.ee.discovery.utils.ConsulService;
-import com.kumuluz.ee.discovery.utils.ConsulServiceConfiguration;
-import com.kumuluz.ee.discovery.utils.ConsulUtils;
-import com.kumuluz.ee.discovery.utils.DiscoveryUtil;
+import com.kumuluz.ee.discovery.utils.*;
 import com.orbitz.consul.AgentClient;
 import com.orbitz.consul.Consul;
 import com.orbitz.consul.ConsulException;
@@ -34,9 +31,6 @@ import com.orbitz.consul.cache.ConsulCache;
 import com.orbitz.consul.cache.ServiceHealthCache;
 import com.orbitz.consul.cache.ServiceHealthKey;
 import com.orbitz.consul.model.health.ServiceHealth;
-import com.vdurmont.semver4j.Requirement;
-import com.vdurmont.semver4j.Semver;
-import com.vdurmont.semver4j.SemverException;
 
 import javax.annotation.PostConstruct;
 import javax.enterprise.context.ApplicationScoped;
@@ -174,7 +168,7 @@ public class ConsulDiscoveryUtilImpl implements DiscoveryUtil {
         List<URL> urlList = new LinkedList<>();
 
         if(version != null) {
-            String resolvedVersion = determineVersion(serviceName, version, environment);
+            String resolvedVersion = VersionUtils.determineVersion(this, serviceName, version, environment);
             for (ConsulService consulService : serviceList) {
                 if (consulService.getVersion().equals(resolvedVersion)) {
                     urlList.add(consulService.getServiceUrl());
@@ -183,56 +177,6 @@ public class ConsulDiscoveryUtilImpl implements DiscoveryUtil {
         }
 
         return Optional.of(urlList);
-    }
-
-    private String determineVersion(String serviceName, String version, String environment) {
-
-        // check, if version has special characters (*, ^, ~)
-        // if true, use get getServiceVersions to get appropriate version
-        // return version
-
-        Requirement versionRequirement;
-        try {
-            versionRequirement = Requirement.buildNPM(version);
-        } catch (SemverException se) {
-            return version;
-        }
-
-        if (!version.contains("*") && !version.contains("x")) {
-            try {
-                new Semver(version, Semver.SemverType.NPM);
-                return version;
-            } catch (SemverException ignored) {
-            }
-        }
-
-        Optional<List<String>> versionsOpt = getServiceVersions(serviceName, environment);
-
-        if (versionsOpt.isPresent()) {
-            List<String> versions = versionsOpt.get();
-            List<Semver> versionsSemver = new LinkedList<>();
-
-            for (String versionString : versions) {
-                Semver listVersion;
-                try {
-                    listVersion = new Semver(versionString, Semver.SemverType.NPM);
-                } catch (SemverException se) {
-                    continue;
-                }
-
-                versionsSemver.add(listVersion);
-            }
-
-            Collections.sort(versionsSemver);
-
-            for (int i = versionsSemver.size() - 1; i >= 0; i--) {
-                if (versionsSemver.get(i).satisfies(versionRequirement)) {
-                    return versionsSemver.get(i).getOriginalValue();
-                }
-            }
-        }
-
-        return version;
     }
 
     @Override
