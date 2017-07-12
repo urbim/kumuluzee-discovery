@@ -68,7 +68,11 @@ kumuluzee:
 Etcd is configured with the common KumuluzEE configuration framework. Configuration properties can be defined with the environment variables or in the configuration file. For more details see the 
 [KumuluzEE configuration wiki page](https://github.com/kumuluz/kumuluzee/wiki/Configuration).
 
-Consul connects to the local agent without additional configuration.
+Consul connects to the local agent (`http://localhost:8500`) without additional configuration. You can specify the URL
+of the Consul client with configuration key `kumuluzee.discovery.consul.agent`. Note, that Consul is responsible for
+assigning the IP of the service and will assign the IP on which Consul is accessible, not the actual IP of the service.
+This means, that this option is useful in specific situations, for example, when you are running your services in
+Docker and want them to connect to the Consul agent, running on Docker host (or running in Docker with `--net=host`).
 
 If your service is accessible over https, you must specify that with configuration key
 `kumuluzee.discovery.consul.protocol: https`. Otherwise, http protocol is used.
@@ -87,21 +91,21 @@ If the service uses https protocol, tag `https` is added.
 
 ### Service registration
 
-To register a service, service URL has to be provided with the configuration key `kumuluzee.base-url` in the following format 
+To register a service with etcd, service URL has to be provided with the configuration key `kumuluzee.base-url` in the following format 
 `http://localhost:8080`. Consul implementation uses its local agent's address, so this key is not used.
 
 KumuluzEE Discovery supports registration of multiple different versions of a service in different environments. The environment can be set with 
 the configuration key `kumuluzee.env`, the default value is `dev`. Service version can also be set with the configuration key 
-`kumuluzee.version`, the default value is `1.0.0`.
+`kumuluzee.version`, the default value is `1.0.0`. Configuration key will override annotation value.
 
 Automatic service registration is enabled with the annotation `@RegisterService` on the REST application class (that extends 
 `javax.ws.rs.core.Application`). The annotation takes six parameters:
 
-- value: service name. Default value is fully classified class name.
-- ttl: time to live of a registration key in the store. Default value is 30 seconds.
-- pingInterval: an interval in which service updates registration key value in the store. Default value is 20.
-- environment: environment in which service is registered. Default value is "dev".
-- version: version of service to be registered. Default value is "1.0.0".
+- value: service name. Default value is fully classified class name. Service name can be overridden with configuration key `kumuluzee.service-name`.
+- ttl: time to live of a registration key in the store. Default value is 30 seconds. TTL can be overridden with configuration key `kumuluzee.discovery.ttl`.
+- pingInterval: an interval in which service updates registration key value in the store. Default value is 20. Ping interval can be overridden with configuration key `kumuluzee.discovery.ping-interval`.
+- environment: environment in which service is registered. Default value is "dev". Environment can be overridden with configuration key `kumuluzee.env`.
+- version: version of service to be registered. Default value is "1.0.0". Version can be overridden with configuration key `kumuluzee.version`.
 - singleton: if true ensures, that only one instance of service with the same name, version and environment is
 registered. Default value is false.
 
