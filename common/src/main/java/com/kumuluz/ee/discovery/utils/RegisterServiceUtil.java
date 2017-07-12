@@ -108,7 +108,7 @@ public class RegisterServiceUtil implements ServletContextListener {
             ttl = ((RegisterService) targetClass.getAnnotation(RegisterService.class)).ttl();
 
             if(ttl == -1) {
-                ttl = configurationUtil.getInteger("kumuluzee.discovery.ttl").orElse(30);
+                ttl = 30;
             }
         }
 

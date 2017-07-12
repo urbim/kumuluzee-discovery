@@ -34,6 +34,7 @@ import com.orbitz.consul.model.health.ServiceHealth;
 
 import javax.annotation.PostConstruct;
 import javax.enterprise.context.ApplicationScoped;
+import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.*;
 import java.util.concurrent.Executors;
@@ -70,8 +71,22 @@ public class ConsulDiscoveryUtilImpl implements DiscoveryUtil {
         this.serviceInstances = new HashMap<>();
         this.serviceVersions = new HashMap<>();
 
+        URL consulAgentUrl = null;
+        try {
+            consulAgentUrl = new URL(configurationUtil.get("kumuluzee.discovery.consul.agent").orElse
+                    ("http://localhost:8500"));
+        } catch (MalformedURLException e) {
+            log.warning("Provided Consul Agent URL is not valid. Defaulting to http://localhost:8500");
+            try {
+                consulAgentUrl = new URL("http://localhost:8500");
+            } catch (MalformedURLException e1) {
+                e1.printStackTrace();
+            }
+        }
+        log.info("Connecting to Consul Agent at: " + consulAgentUrl);
+
         Consul consul = Consul.builder()
-                .withPing(false)
+                .withUrl(consulAgentUrl).withPing(false)
                 .withReadTimeoutMillis(CONSUL_WATCH_WAIT_SECONDS*1000 + (CONSUL_WATCH_WAIT_SECONDS*1000) / 16 + 1000)
                 .build();
 
